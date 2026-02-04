@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Bulk Sender — unified</title>
+<style>
+  :root{--bg:#f3f4f6;--card:#fff;--muted:#64748b;--ok:#16a34a;--err:#ef4444;--info:#0ea5e9}
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial;margin:18px;background:var(--bg);color:#0f1724}
+  .card{max-width:1100px;margin:12px auto;padding:16px;border-radius:10px;background:var(--card);box-shadow:0 6px 20px rgba(2,6,23,0.06)}
+  h1{font-size:18px;margin:0 0 8px}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .col{flex:1;min-width:220px}
+  label{display:block;font-size:13px;color:#111;margin-top:8px}
+  input[type=text], select, textarea{width:100%;padding:8px;border:1px solid #e6e9ef;border-radius:8px;font-size:14px}
+  textarea{min-height:120px;resize:vertical}
+  input[type=file]{margin-top:8px}
+  button{background:#0b74ff;color:#fff;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+  button.secondary{background:#e6e9ef;color:#111}
+  button.warn{background:var(--err);color:#fff}
+  .controls{display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  .small{font-size:12px;color:var(--muted)}
+  #previewBox, #logBox{margin-top:12px;border-radius:8px;padding:10px;background:#0b1220;color:#e6eef9;max-height:260px;overflow:auto}
+  .line{padding:6px;border-radius:6px;margin-bottom:6px;font-family:monospace;white-space:pre-wrap}
+  .line.ok{background:rgba(22,163,74,0.08);color:var(--ok);border:1px solid rgba(22,163,74,0.12)}
+  .line.err{background:rgba(239,68,68,0.06);color:var(--err);border:1px solid rgba(239,68,68,0.12)}
+  .line.info{background:rgba(14,165,233,0.06);color:var(--info);border:1px solid rgba(14,165,233,0.12)}
+  .statusbar{display:flex;gap:12px;align-items:center;margin-top:10px;flex-wrap:wrap}
+  .pill{padding:6px 8px;border-radius:999px;background:#f1f5f9;font-weight:600;font-size:13px}
+  .badge{font-weight:700}
+  .small-muted{font-size:12px;color:#475569}
+  .footer{margin-top:12px;font-size:13px;color:#475569}
+  .hint{font-size:12px;color:#475569;margin-top:6px}
+  .highlight-select {border: 2px solid #4a90e2;background: #f0f8ff;padding: 6px;border-radius: 6px;transition: 0.25s ease;font-weight: bold;
+  .highlight-select:focus {border-color: #1c6acc;background: #e6f2ff;box-shadow: 0 0 4px #4a90e2;
+}
+
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Bulk Sender — set_pay_type / grn+comment (unified)</h1>
+    <div class="small-muted">CSV должен содержать UUID (в любом столбце) или в текстовом поле UUID можно вставлять в любом формате — инструмент попробует распознать.</div>
+
+    <div class="row" style="margin-top:12px">
+      <div class="col">
+        <label>Request URL</label>
+        <input id="url" type="text" value="http://10.2.201.200/api/ui/find-transactions/set_pay_type" />
+      </div>
+
+      <div class="col">
+        <label>HTTP method</label>
+        <select id="method"><option>POST</option><option>PUT</option><option>PATCH</option></select>
+      </div>
+
+      <div class="col">
+        <label>Authorization (Bearer ...)</label>
+        <input id="auth" type="text" placeholder="Bearer ..." />
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <label>Operation mode</label>
+        <select id="mode" class="highlight-select" onchange="updateUrl()">
+          <option value="pay_type">Сменить pay_type (body: { transaction_uuid, pay_type })</option>
+          <option value="grn_comment">Отправить grn + comment (body: { transaction_uuid, grn, comment })</option>
+        </select>
+      </div>
+
+      <div class="col">
+        <label>Pay type (если режим pay_type)</label>
+        <input id="payType" type="text" value="5" />
+      </div>
+
+      <div class="col">
+        <label>Delay между запросами (ms)</label>
+        <input id="delay" type="text" value="200" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <label>GRN (если режим grn+comment)</label>
+        <input id="grn" type="text" placeholder="например T732YE797" />
+      </div>
+      <div class="col">
+        <label>COMMENT (если режим grn+comment)</label>
+        <input id="comment" type="text" placeholder="например 8667" />
+      </div>
+      <div class="col">
+        <label>UUID column name (если в CSV header)</label>
+        <input id="uuidCol" type="text" placeholder="transaction_uuid (опционально)" />
+        <div class="hint">Если CSV имеет header — укажите имя столбца; иначе система попытается найти UUID автоматически.</div>
+      </div>
+    </div>
+
+    <hr style="margin:12px 0">
+
+    <div class="row">
+      <div class="col">
+        <label>Источник UUID</label>
+        <select id="source" class="highlight-select">
+          <option value="file">CSV / TXT файл</option>
+          <option value="textarea">Поле ввода (textarea)</option>
+        </select>
+
+        <label style="margin-top:8px">CSV / TXT файл (одна колонка или таблица)</label>
+        <input id="csvFile" type="file" accept=".csv,.txt" />
+
+      </div>
+
+      <div class="col">
+        <label>Или вставьте UUID в поле (любой разделитель:\\n, запятая, ;, пробел). Инструмент распознает header/колонки.</label>
+        <textarea id="textArea" placeholder="uuid1\nuuid2\nили transaction_uuid,grn,..."></textarea>
+      </div>
+
+      <div class="col">
+        <label>Опции</label>
+        <div style="display:flex;gap:8px;flex-direction:column">
+          <label><input id="autoDownloadErrors" type="checkbox" /> Скачать errors.csv автоматически</label>
+          <label><input id="skipPreview" type="checkbox" /> Пропускать Preview перед Send All (не рекомендовано)</label>
+          <label><input id="useFirstColIfHeader" type="checkbox" checked /> Если header не указан — брать первую колонку</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btnPreview">Preview (первые 10)</button>
+      <button id="btnSendOne" class="secondary">Send 1 (тест)</button>
+      <button id="btnSendAll">Send All</button>
+      <button id="btnStop" class="warn" disabled>Stop</button>
+      <button id="btnDownloadErrors" class="secondary">Скачать errors.csv</button>
+      <button id="btnDownloadReport" class="secondary">Скачать report.csv</button>
+      <div style="margin-left:auto" class="small-muted">Совет: Preview → Send 1 → Send All</div>
+    </div>
+
+    <div class="statusbar">
+      <div class="pill">Всего: <span id="total" class="badge">0</span></div>
+      <div class="pill" style="background:#ecfdf5">Успех: <span id="success" class="badge">0</span></div>
+      <div class="pill" style="background:#fff1f2">Ошибки: <span id="fail" class="badge">0</span></div>
+      <div class="pill">Прогресс: <span id="progress" class="badge">0/0</span></div>
+    </div>
+
+    <h3 style="margin-top:12px">PREVIEW</h3>
+    <div id="previewBox"></div>
+
+    <h3 style="margin-top:12px">Логи</h3>
+    <div id="logBox"></div>
+
+    <div class="footer">
+      <div class="hint">Поддерживаемые форматы в textarea: простые строки UUID, CSV с header, разделители: запятая, ;, пробелы, табы, переносы строки.</div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // DOM
+  const csvFile = document.getElementById('csvFile');
+  const textArea = document.getElementById('textArea');
+  const sourceEl = document.getElementById('source');
+  const btnPreview = document.getElementById('btnPreview');
+  const btnSendOne = document.getElementById('btnSendOne');
+  const btnSendAll = document.getElementById('btnSendAll');
+  const btnStop = document.getElementById('btnStop');
+  const btnDownloadErrors = document.getElementById('btnDownloadErrors');
+  const btnDownloadReport = document.getElementById('btnDownloadReport');
+  const previewBox = document.getElementById('previewBox');
+  const logBox = document.getElementById('logBox');
+  const totalEl = document.getElementById('total');
+  const successEl = document.getElementById('success');
+  const failEl = document.getElementById('fail');
+  const progressEl = document.getElementById('progress');
+
+  const urlEl = document.getElementById('url');
+  const authEl = document.getElementById('auth');
+  const methodEl = document.getElementById('method');
+  const modeEl = document.getElementById('mode');
+  const payTypeEl = document.getElementById('payType');
+  const delayEl = document.getElementById('delay');
+  const grnEl = document.getElementById('grn');
+  const commentEl = document.getElementById('comment');
+  const uuidColEl = document.getElementById('uuidCol');
+  const autoDownloadErrorsEl = document.getElementById('autoDownloadErrors');
+  const skipPreviewEl = document.getElementById('skipPreview');
+  const useFirstColIfHeaderEl = document.getElementById('useFirstColIfHeader');
+
+  // State
+  let parsedRows = []; // array of objects or simple {transaction_uuid: ...}
+  let errors = [];
+  let report = [];
+  let running = false;
+  let abortController = null;
+
+  // Logging
+  function appendLog(text, type='info'){
+    const el = document.createElement('div');
+    el.className = 'line ' + (type==='ok' ? 'ok' : type==='err' ? 'err' : 'info');
+    el.textContent = (new Date()).toLocaleTimeString() + ' → ' + text;
+    logBox.prepend(el); // newest first
+  }
+
+  function setCounters(){
+    totalEl.textContent = parsedRows.length;
+    const succ = report.filter(r=>r.ok).length;
+    const fails = report.filter(r=>!r.ok).length;
+    successEl.textContent = succ;
+    failEl.textContent = fails;
+    progressEl.textContent = `${report.length}/${parsedRows.length}`;
+  }
+
+  // Utilities
+  const uuidRegex = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\b/;
+
+  function extractUUIDsFromString(s){
+    // Find all UUID-like substrings
+    const matches = s.match(new RegExp(uuidRegex, 'g'));
+    if(matches && matches.length) return matches;
+    // Otherwise, try to find tokens that look like single values (fallback)
+    const tokens = s.split(/[\s,;]+/).map(t => t.trim()).filter(Boolean);
+    // Filter tokens that look like uuid-ish (length 8+ but may be not full uuid)
+    return tokens;
+  }
+
+  function parseCSVTextGeneric(text){
+    // Split into lines, trim
+    const lines = text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    if(lines.length === 0) return [];
+    // Detect separators in header line
+    const sep = detectSeparator(lines[0]);
+    const headerCells = lines[0].split(sep).map(c=>c.trim());
+    const maybeHeader = headerCells.some(cell => /[A-Za-z_]/.test(cell) && !uuidRegex.test(cell));
+    const result = [];
+    if(maybeHeader){
+      // parse as CSV with header
+      for(let i=1;i<lines.length;i++){
+        const cells = lines[i].split(sep).map(c=>c.trim());
+        const obj = {};
+        headerCells.forEach((h, idx) => obj[h || `col${idx+1}`] = (cells[idx]||'').trim());
+        result.push(obj);
+      }
+      return { rows: result, header: headerCells };
+    } else {
+      // not header — treat as list of values or multi-column without header
+      // try to extract UUIDs per line
+      for(const ln of lines){
+        const sep2 = detectSeparator(ln);
+        const parts = ln.split(sep2).map(p=>p.trim()).filter(Boolean);
+        // if single token and it's a UUID or token, add object
+        if(parts.length === 1){
+          result.push({ transaction_uuid: parts[0] });
+        } else {
+          // multiple columns — try to find UUID in row
+          let found = false;
+          for(const p of parts){
+            if(uuidRegex.test(p)){
+              result.push({ transaction_uuid: p });
+              found = true; break;
+            }
+          }
+          if(!found){
+            // fallback: pick first column or join all
+            if(useFirstColIfHeaderEl.checked) result.push({ transaction_uuid: parts[0] });
+            else result.push({ transaction_uuid: parts.join(',') });
+          }
+        }
+      }
+      return { rows: result, header: null };
+    }
+  }
+
+  function detectSeparator(line){
+    // Check for common separators
+    if(line.indexOf(';') !== -1) return ';';
+    if(line.indexOf(',') !== -1) return ',';
+    if(line.indexOf('\t') !== -1) return '\t';
+    return / +/; // fallback to whitespace regexp used in split
+  }
+
+  // Parse from selected source
+  async function parseSource(){
+    parsedRows = [];
+    const src = sourceEl.value;
+    if(src === 'file'){
+      const f = csvFile.files[0];
+      if(!f) { appendLog('Нет выбранного файла', 'err'); return; }
+      const text = await f.text();
+      const parsed = parseCSVTextGeneric(text);
+      parsedRows = parsed.rows;
+      // If header exists and user provided uuidCol, remap rows to ensure uuid in transaction_uuid
+      if(parsed.header && uuidColEl.value.trim()){
+        const col = uuidColEl.value.trim();
+        parsedRows = parsedRows.map(r => ({ transaction_uuid: r[col] || r[Object.keys(r)[0]] || '' }));
+      } else if(parsed.header && !uuidColEl.value.trim()){
+        // attempt auto-detect column with UUIDs
+        const colWithUuid = parsed.header.find(h => parsed.rows.some(r => uuidRegex.test(r[h])));
+        if(colWithUuid){
+          parsedRows = parsedRows.map(r => ({ transaction_uuid: r[colWithUuid] || '' }));
+        } else {
+          // take first column
+          parsedRows = parsedRows.map(r => ({ transaction_uuid: r[Object.keys(r)[0]] || '' }));
+        }
+      }
+    } else {
+      // textarea
+      const text = textArea.value.trim();
+      if(!text){ appendLog('Textarea пуст', 'err'); return; }
+      const parsed = parseCSVTextGeneric(text);
+      parsedRows = parsed.rows;
+      if(parsed.header && uuidColEl.value.trim()){
+        const col = uuidColEl.value.trim();
+        parsedRows = parsedRows.map(r => ({ transaction_uuid: r[col] || r[Object.keys(r)[0]] || '' }));
+      } else if(parsed.header){
+        const colWithUuid = parsed.header.find(h => parsed.rows.some(r => uuidRegex.test(r[h])));
+        if(colWithUuid){
+          parsedRows = parsed.rows.map(r => ({ transaction_uuid: r[colWithUuid] || '' }));
+        } else {
+          parsedRows = parsed.rows.map(r => ({ transaction_uuid: r[Object.keys(r)[0]] || '' }));
+        }
+      }
+    }
+
+    // final cleaning: if rows contain objects with non-uuid values, try to extract uuid via regex
+    parsedRows = parsedRows.map(r => {
+      const val = String(r.transaction_uuid || '').trim();
+      const found = val.match(uuidRegex);
+      if(found) return { transaction_uuid: found[0] };
+      // if not found but token-like (no spaces and not too long) keep as-is
+      const tokens = val.split(/[\s,;]+/).filter(Boolean);
+      if(tokens.length === 1) return { transaction_uuid: tokens[0] };
+      // fallback: try extract first token
+      return { transaction_uuid: tokens[0] || val };
+    });
+
+    // remove empty
+    parsedRows = parsedRows.filter(r => r.transaction_uuid);
+    appendLog(`Парсинг завершён: ${parsedRows.length} UUID`,'info');
+    report = []; errors = [];
+    setCounters();
+  }
+
+  // Build payload
+  function buildPayloadForRow(row){
+    const uuid = row.transaction_uuid;
+    if(modeEl.value === 'pay_type'){
+      return { transaction_uuid: uuid, pay_type: Number(payTypeEl.value) };
+    } else {
+      return { transaction_uuid: uuid, grn: grnEl.value.trim(), comment: commentEl.value.trim() };
+    }
+  }
+
+  // Preview first up to 10
+  btnPreview.addEventListener('click', async ()=>{
+    await parseSource();
+    if(!parsedRows.length) return alert('Нет UUID после парсинга');
+    const n = Math.min(10, parsedRows.length);
+    const list = [];
+    for(let i=0;i<n;i++) list.push(buildPayloadForRow(parsedRows[i]));
+    previewBox.textContent = JSON.stringify(list, null, 2);
+    appendLog(`PREVIEW: показано ${n} записей`, 'info');
+  });
+
+  // low-level fetch with AbortController support
+  async function doFetch(payload){
+    const endpoint = urlEl.value.trim();
+    const method = methodEl.value || 'POST';
+    const headers = { 'Content-Type': 'application/json;charset=UTF-8' };
+    const token = authEl.value.trim();
+    if(token) headers['Authorization'] = token;
+    try{
+      const resp = await fetch(endpoint, {
+        method,
+        headers,
+        body: JSON.stringify(payload),
+        signal: abortController ? abortController.signal : undefined,
+        credentials: 'include'
+      });
+      let body;
+      try{ body = await resp.clone().json(); } catch(e){ body = await resp.text(); }
+      return { ok: resp.ok, status: resp.status, body };
+    } catch(err){
+      if(err.name === 'AbortError') throw err;
+      return { ok: false, status: 'network', body: String(err) };
+    }
+  }
+
+  // Send 1 (test)
+  btnSendOne.addEventListener('click', async ()=>{
+    await parseSource();
+    if(!parsedRows.length) return alert('Нет UUID для отправки');
+    const payload = buildPayloadForRow(parsedRows[0]);
+    appendLog(`Отправляю тестовую: ${JSON.stringify(payload)}`, 'info');
+    abortController = new AbortController();
+    try{
+      const res = await doFetch(payload);
+      report.push({ index: 1, uuid: payload.transaction_uuid, ok: res.ok, status: res.status, body: res.body });
+      if(res.ok) appendLog(`OK ${res.status} ${payload.transaction_uuid} → ${typeof res.body==='object'?JSON.stringify(res.body):res.body}`, 'ok');
+      else {
+        appendLog(`ERR ${res.status} ${payload.transaction_uuid} → ${typeof res.body==='object'?JSON.stringify(res.body):res.body}`, 'err');
+        errors.push({ index:1, uuid: payload.transaction_uuid, status: res.status, body: typeof res.body==='object'?JSON.stringify(res.body):res.body });
+      }
+      setCounters();
+    } catch(e){
+      if(e.name === 'AbortError') appendLog('Тестовая отправка отменена', 'err');
+      else appendLog('Ошибка тестовой отправки: ' + e, 'err');
+    } finally { abortController = null; }
+  });
+
+  // Stop
+  btnStop.addEventListener('click', ()=>{
+    if(abortController){
+      abortController.abort();
+      running = false;
+      appendLog('Процесс остановлен пользователем', 'err');
+      btnStop.disabled = true;
+    }
+  });
+
+  // Send All
+  btnSendAll.addEventListener('click', async ()=>{
+    // parse if not parsed
+    await parseSource();
+    if(!parsedRows.length) return alert('Нет UUID для отправки');
+    if(running) return alert('Уже выполняется отправка');
+    if(!skipPreviewEl.checked){
+      // show preview if not skipped
+      const proceed = confirm('Сделать Preview (первые 10)? Нажмите Отмена чтобы продолжить без Preview.');
+      if(!proceed && parsedRows.length){
+        // user cancelled -> continue
+      } else {
+        // show preview and let them confirm
+        const list = parsedRows.slice(0, Math.min(10, parsedRows.length)).map(r => buildPayloadForRow(r));
+        previewBox.textContent = JSON.stringify(list, null, 2);
+        const ok = confirm('Просмотрен PREVIEW. Нажмите ОК для продолжения массовой отправки.');
+        if(!ok){ appendLog('Массовая отправка отменена после Preview', 'err'); return; }
+      }
+    }
+
+    running = true;
+    abortController = new AbortController();
+    btnStop.disabled = false;
+    errors = []; report = [];
+
+    appendLog(`Начинаю массовую отправку ${parsedRows.length} записей, delay=${delayEl.value} ms`, 'info');
+
+    const delayMs = Math.max(0, Number(delayEl.value) || 200);
+
+    for(let i=0;i<parsedRows.length;i++){
+      if(!running) break;
+      const payload = buildPayloadForRow(parsedRows[i]);
+      appendLog(`#${i+1} ${payload.transaction_uuid} → ${JSON.stringify(payload)}`, 'info');
+      try{
+        const res = await doFetch(payload);
+        report.push({ index: i+1, uuid: payload.transaction_uuid, ok: res.ok, status: res.status, body: typeof res.body==='object'?JSON.stringify(res.body):res.body });
+        if(res.ok){
+          appendLog(`OK ${res.status} ${payload.transaction_uuid}`, 'ok');
+        } else {
+          appendLog(`ERR ${res.status} ${payload.transaction_uuid} → ${typeof res.body==='object'?JSON.stringify(res.body):res.body}`, 'err');
+          errors.push({ index:i+1, uuid: payload.transaction_uuid, status: res.status, body: typeof res.body==='object'?JSON.stringify(res.body):res.body });
+        }
+      } catch(e){
+        if(e.name === 'AbortError'){
+          appendLog(`Отмена (Abort) на ${payload.transaction_uuid}`, 'err');
+          report.push({ index: i+1, uuid: payload.transaction_uuid, ok:false, status:'aborted', body:'aborted' });
+          errors.push({ index:i+1, uuid: payload.transaction_uuid, status: 'aborted', body: 'aborted' });
+          break;
+        } else {
+          appendLog(`NETWORK ERROR ${payload.transaction_uuid} → ${e}`, 'err');
+          report.push({ index: i+1, uuid: payload.transaction_uuid, ok:false, status:'network', body: String(e) });
+          errors.push({ index:i+1, uuid: payload.transaction_uuid, status:'network', body: String(e) });
+        }
+      }
+      setCounters();
+      if(i < parsedRows.length - 1) await new Promise(res => setTimeout(res, delayMs));
+    }
+
+    running = false;
+    abortController = null;
+    btnStop.disabled = true;
+
+    appendLog(`Массовая отправка завершена. Ошибок: ${errors.length}`, 'info');
+
+    if(autoDownloadErrorsEl.checked && errors.length) downloadErrors();
+  });
+
+  // Download errors
+  function downloadErrors(){
+    if(!errors.length){ appendLog('Нет ошибок для скачивания', 'info'); return; }
+    const header = ['index','uuid','status','body'];
+    const rowsCsv = [header.join(',')];
+    errors.forEach(e=>{
+      const safe = v => `"${String(v||'').replace(/"/g,'""')}"`;
+      rowsCsv.push([e.index, safe(e.uuid), safe(e.status), safe(e.body)].join(','));
+    });
+    const blob = new Blob([rowsCsv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'errors.csv'; document.body.appendChild(a); a.click(); a.remove();
+    appendLog('errors.csv скачан', 'info');
+  }
+  btnDownloadErrors.addEventListener('click', downloadErrors);
+
+  // Download report
+  function downloadReport(){
+    if(!report.length){ appendLog('Нет отчёта для скачивания', 'info'); return; }
+    const header = ['index','uuid','ok','status','body'];
+    const rowsCsv = [header.join(',')];
+    report.forEach(r=>{
+      const safe = v => `"${String(v||'').replace(/"/g,'""')}"`;
+      rowsCsv.push([r.index, safe(r.uuid), r.ok ? '1' : '0', safe(r.status), safe(r.body)].join(','));
+    });
+    const blob = new Blob([rowsCsv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'report.csv'; document.body.appendChild(a); a.click(); a.remove();
+    appendLog('report.csv скачан', 'info');
+  }
+  btnDownloadReport.addEventListener('click', downloadReport);
+
+  // Parse file on change (quick parse for count)
+  csvFile.addEventListener('change', async ()=>{
+    // Quick parse just to show count without full parsing
+    const f = csvFile.files[0];
+    if(!f) return;
+    const text = await f.text();
+    const parsed = parseCSVTextGeneric(text);
+    // attempt to count extracted uuids
+    let count = 0;
+    if(parsed.rows) count = parsed.rows.length;
+    appendLog(`Файл выбран. Примерно строк: ${count}`, 'info');
+    // reset counters etc.
+    parsedRows = []; report = []; errors = [];
+    setCounters();
+  });
+
+  // Initial hint
+  appendLog('Инструмент готов. Выберите источник UUID (файл или поле), нажмите Preview, затем Send 1 и потом Send All.', 'info');
+})();
+
+function updateUrl() {
+    const sel = document.getElementById("mode").value; // <-- исправлено
+    const urlInput = document.getElementById("url");
+
+    if (sel === "pay_type") {
+        urlInput.value = "http://10.2.201.200/api/ui/find-transactions/set_pay_type";
+    } else {
+        urlInput.value = "http://10.2.201.200/api/ui/find-transactions/set_grnz";
+    }
+}
+</script>
+</body>
+</html>
