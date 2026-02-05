@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="ru">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Bulk Sender Ultimate v3</title>
+    <style>
+        :root {
+            --bg: #f3f4f6;
+            --card: #fff;
+            --muted: #64748b;
+            --ok: #16a34a;
+            --err: #ef4444;
+            --info: #0ea5e9
+        }
+
+        body {
+            font-family: Inter, system-ui, Segoe UI, Roboto, Arial;
+            margin: 18px;
+            background: var(--bg);
+            color: #0f1724
+        }
+
+        .card {
+            max-width: 1100px;
+            margin: 12px auto;
+            padding: 16px;
+            border-radius: 10px;
+            background: var(--card);
+            box-shadow: 0 6px 20px rgba(2, 6, 23, 0.06)
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 8px
+        }
+
+        .row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap
+        }
+
+        .col {
+            flex: 1;
+            min-width: 220px
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: #111;
+            margin-top: 8px
+        }
+
+        input[type=text],
+        select,
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #e6e9ef;
+            border-radius: 8px;
+            font-size: 14px
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical
+        }
+
+        input[type=file] {
+            margin-top: 8px
+        }
+
+        button {
+            background: #0b74ff;
+            color: #fff;
+            border: 0;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600
+        }
+
+        button.secondary {
+            background: #e6e9ef;
+            color: #111
+        }
+
+        button.warn {
+            background: var(--err);
+            color: #fff
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 12px;
+            flex-wrap: wrap
+        }
+
+        .small {
+            font-size: 12px;
+            color: var(--muted)
+        }
+
+        #previewBox,
+        #logBox {
+            margin-top: 12px;
+            border-radius: 8px;
+            padding: 10px;
+            background: #0b1220;
+            color: #e6eef9;
+            max-height: 260px;
+            overflow: auto
+        }
+
+        .line {
+            padding: 6px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-family: monospace;
+            white-space: pre-wrap
+        }
+
+        .line.ok {
+            background: rgba(22, 163, 74, 0.08);
+            color: var(--ok);
+            border: 1px solid rgba(22, 163, 74, 0.12)
+        }
+
+        .line.err {
+            background: rgba(239, 68, 68, 0.06);
+            color: var(--err);
+            border: 1px solid rgba(239, 68, 68, 0.12)
+        }
+
+        .line.info {
+            background: rgba(14, 165, 233, 0.06);
+            color: var(--info);
+            border: 1px solid rgba(14, 165, 233, 0.12)
+        }
+
+        .statusbar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-top: 10px;
+            flex-wrap: wrap
+        }
+
+        .pill {
+            padding: 6px 8px;
+            border-radius: 999px;
+            background: #f1f5f9;
+            font-weight: 600;
+            font-size: 13px
+        }
+
+        .badge {
+            font-weight: 700
+        }
+
+        .small-muted {
+            font-size: 12px;
+            color: #475569
+        }
+
+        .footer {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #475569
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #475569;
+            margin-top: 6px
+        }
+
+        .highlight-select {
+            border: 2px solid #4a90e2;
+            background: #f0f8ff;
+            padding: 6px;
+            border-radius: 6px;
+            transition: 0.25s ease;
+            font-weight: bold;
+        }
+
+        .highlight-select:focus {
+            border-color: #1c6acc;
+            background: #e6f2ff;
+            box-shadow: 0 0 4px #4a90e2;
+        }
+
+
+        .parser-container { margin-top: 14px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; background:#f8fafc; }
+        .results-layout { display:grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap:12px; margin-top:12px; }
+        .result-column { display:flex; flex-direction:column; gap:8px; min-width:0; }
+        .result-card { background:#fff; border:1px solid #e2e8f0; border-radius:8px; padding:10px; cursor:pointer; position:relative; }
+        .result-card.main { border-left:4px solid #16a34a; } .result-card.sql { border-left:4px solid #0ea5e9; } .result-card.num-csv { border-left:4px solid #0b74ff; }
+        .result-card.uuid-main { border-left:4px solid #7c3aed; } .result-card.uuid-sql { border-left:4px solid #db2777; } .result-card.uuid-csv { border-left:4px solid #f97316; }
+        .result-card.grz-main { border-left:4px solid #ef4444; } .result-card.grz-sql { border-left:4px solid #dc2626; } .result-card.grz-csv { border-left:4px solid #b91c1c; }
+        .result-title { font-size:12px; font-weight:700; color:#334155; }
+        .result-number { font-family: ui-monospace, monospace; font-size:13px; word-break:break-all; }
+        .count-badge { position:absolute; top:8px; right:8px; background:#16a34a; color:#fff; border-radius:999px; padding:2px 7px; font-size:11px; font-weight:700; }
+        .status { margin-top:10px; padding:8px; border-radius:8px; font-size:13px; font-weight:600; }
+        .status.success { background: rgba(22,163,74,.08); color:#16a34a; } .status.error { background: rgba(239,68,68,.08); color:#ef4444; }
+        .debug { margin-top:8px; border-radius:8px; padding:8px; background:#0b1220; color:#e6eef9; font-family:ui-monospace,monospace; font-size:12px; }
+        .query-button { background:#0b74ff; color:#fff; border:0; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:600; margin-top:2px; }
+        .db-results-container { margin-top:10px; padding:10px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; }
+        .db-results-table { width:100%; border-collapse:collapse; font-size:12px; }
+        .db-results-table th,.db-results-table td { border:1px solid #e2e8f0; padding:6px; text-align:left; }
+        @media (max-width: 1024px){ .results-layout{ grid-template-columns:1fr; } }
+
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>Bulk Sender Ultimate v3— set_pay_type / grn+comment / pan-пожиратель</h1>
+        <div class="small-muted">CSV должен содержать UUID (в любом столбце) или в текстовом поле UUID можно вставлять в
+            любом формате — инструмент попробует распознать.</div>
+
+        <div class="row" style="margin-top:12px">
+            <div class="col">
+                <label>Request URL</label>
+                <input id="url" type="text" value="http://10.2.201.200/api/ui/find-transactions/set_pay_type" />
+            </div>
+
+            <div class="col">
+                <label>HTTP method</label>
+                <select id="method">
+                    <option>POST</option>
+                    <option>PUT</option>
+                    <option>PATCH</option>
+                </select>
+            </div>
+
+            <div class="col">
+                <label>Authorization (Bearer ...)</label>
+                <input id="auth" type="text" placeholder="Bearer ..." />
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <label>Operation mode</label>
+                <select id="mode" class="highlight-select">
+                    <option value="pay_type">Сменить pay_type (body: { transaction_uuid, pay_type })</option>
+                    <option value="grn_comment">Отправить grn + comment (body: { transaction_uuid, grn, comment })
+                    </option>
+                    <option value="pan_change">Сменить PAN (парсинг из текста) (body: { transaction_uuid, grn, comment
+                        })</option>
+                </select>
+            </div>
+
+            <div class="col">
+                <label>Pay type (если режим pay_type)</label>
+                <input id="payType" type="text" value="5" />
+            </div>
+
+            <div class="col">
+                <label>Delay между запросами (ms)</label>
+                <input id="delay" type="text" value="200" />
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <label>GRN (если режим grn+comment)</label>
+                <input id="grn" type="text" placeholder="например T732YE797" />
+            </div>
+            <div class="col">
+                <label>COMMENT (если режим grn+comment)</label>
+                <input id="comment" type="text" placeholder="например 8667" />
+            </div>
+            <div class="col">
+                <label>UUID column name (если в CSV header)</label>
+                <input id="uuidCol" type="text" placeholder="transaction_uuid (опционально)" />
+                <div class="hint">Если CSV имеет header — укажите имя столбца; иначе система попытается найти UUID
+                    автоматически.</div>
+            </div>
+        </div>
+
+        
+        <div class="parser-container">
+            <h2>🔍 Встроенный парсер (из parser-2)</h2>
+            <div class="small-muted">Вставьте текст обращения, извлеките UUID/ГРНЗ/постановления и при необходимости перенесите UUID в отправку.</div>
+            <label style="margin-top:8px">📝 Текст для парсинга</label>
+            <textarea id="inputText" placeholder="Вставьте сырой текст..."></textarea>
+
+            <div id="result" style="display:none; margin-top:10px;">
+                <div class="results-layout">
+                    <div class="result-column">
+                        <h3 style="color:#28a745;">📜 Постановления</h3>
+                        <div class="result-card main" id="cardNumMain" onclick="copyNumber()"><div class="count-badge" id="mainCount">0</div><div class="result-title">📱 Номер постановления</div><div class="result-number" id="outputText"></div></div>
+                        <div class="result-card sql" id="cardNumSql" onclick="copySQL()"><div class="count-badge" id="sqlCount">0</div><div class="result-title">💾 SQL IN (...)</div><div class="result-number" id="sqlOutput"></div></div>
+                        <div class="result-card num-csv" id="cardNumCsv" onclick="copyNumCsv()"><div class="count-badge" id="numCsvCount">0</div><div class="result-title">📄 CSV</div><div class="result-number" id="numCsvOutput"></div></div>
+                        <button id="queryDbBtn" class="query-button" style="display:none;">📡 Найти постановления в БД</button>
+                    </div>
+                    <div class="result-column">
+                        <h3 style="color:#6f42c1;">🆔 UUID</h3>
+                        <div class="result-card uuid-main" id="cardUuidMain" onclick="copyUUIDMain()"><div class="count-badge" id="uuidMainCount">0</div><div class="result-title">🆔 UUID (главный)</div><div class="result-number" id="uuidOutput"></div></div>
+                        <div class="result-card uuid-sql" id="cardUuidSql" onclick="copyUUIDSQL()"><div class="count-badge" id="uuidSqlCount">0</div><div class="result-title">💾 SQL IN (UUID)</div><div class="result-number" id="uuidSqlOutput"></div></div>
+                        <div class="result-card uuid-csv" id="cardUuidCsv" onclick="copyUUIDCsv()"><div class="count-badge" id="uuidCsvCount">0</div><div class="result-title">📄 CSV UUID</div><div class="result-number" id="uuidCsvOutput"></div></div>
+                        <button id="btnUseParsedUuids" class="secondary">➡️ Использовать UUID в Sender</button>
+                    </div>
+                    <div class="result-column">
+                        <h3 style="color:#dc3545;">🚗 ГРНЗ</h3>
+                        <div class="result-card grz-main" id="cardGrzMain" onclick="copyGrzMain()"><div class="count-badge" id="grzMainCount">0</div><div class="result-title">🚗 ГРНЗ (главный)</div><div class="result-number" id="grzOutput"></div></div>
+                        <div class="result-card grz-sql" id="cardGrzSql" onclick="copyGrzSQL()"><div class="count-badge" id="grzSqlCount">0</div><div class="result-title">💾 SQL IN (ГРНЗ)</div><div class="result-number" id="grzSqlOutput"></div></div>
+                        <div class="result-card grz-csv" id="cardGrzCsv" onclick="copyGrzCsv()"><div class="count-badge" id="grzCsvCount">0</div><div class="result-title">📄 CSV ГРНЗ</div><div class="result-number" id="grzCsvOutput"></div></div>
+                    </div>
+                </div>
+                <div id="status" class="status"></div>
+                <div id="debug" class="debug"></div>
+                <div id="dbResultsContainer" class="db-results-container" style="display:none;"><h3>Результаты из БД</h3><div id="dbResultsOutput"></div></div>
+            </div>
+        </div>
+
+        <hr style="margin:12px 0">
+
+
+        <div class="row">
+            <div class="col">
+                <label>Источник UUID</label>
+                <select id="source" class="highlight-select">
+                    <option value="file">CSV / TXT файл</option>
+                    <option value="textarea">Поле ввода (textarea)</option>
+                </select>
+
+                <label style="margin-top:8px">CSV / TXT файл (одна колонка или таблица)</label>
+                <input id="csvFile" type="file" accept=".csv,.txt" />
+
+            </div>
+
+            <div class="col">
+                <label>Или вставьте UUID в поле (любой разделитель:\\n, запятая, ;, пробел). Инструмент распознает
+                    header/колонки.</label>
+                <textarea id="textArea" placeholder="uuid1\nuuid2\nили transaction_uuid,grn,..."></textarea>
+            </div>
+
+            <div class="col">
+                <label>Опции</label>
+                <div style="display:flex;gap:8px;flex-direction:column">
+                    <label><input id="fastExtract" type="checkbox" checked /> Быстрое извлечение UUID из любого текста
+                        (например
+                        smena-pan.txt)</label>
+                    <label><input id="autoDownloadErrors" type="checkbox" /> Скачать errors.csv автоматически</label>
+                    <label><input id="skipPreview" type="checkbox" /> Пропускать Preview перед Send All (не
+                        рекомендовано)</label>
+                    <label><input id="useFirstColIfHeader" type="checkbox" checked /> Если header не указан — брать
+                        первую
+                        колонку</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="btnPreview">Preview (первые 10)</button>
+            <button id="btnSendOne" class="secondary">Send 1 (тест)</button>
+            <button id="btnSendAll">Send All</button>
+            <button id="btnPause" class="secondary" disabled>Pause</button>
+            <button id="btnStop" class="warn" disabled>Stop</button>
+            <button id="btnDownloadErrors" class="secondary">Скачать errors.csv</button>
+            <button id="btnDownloadReport" class="secondary">Скачать report.csv</button>
+            <div style="margin-left:auto" class="small-muted">Совет: Preview → Send 1 → Send All</div>
+        </div>
+
+        <div class="statusbar">
+            <div class="pill">Всего: <span id="total" class="badge">0</span></div>
+            <div class="pill" style="background:#ecfdf5">Успех: <span id="success" class="badge">0</span></div>
+            <div class="pill" style="background:#fff1f2">Ошибки: <span id="fail" class="badge">0</span></div>
+            <div class="pill">Прогресс: <span id="progress" class="badge">0/0</span></div>
+        </div>
+
+        <h3 style="margin-top:12px">PREVIEW</h3>
+        <div id="previewBox"></div>
+
+        <h3 style="margin-top:12px">Логи</h3>
+        <div id="logBox"></div>
+
+        <div class="footer">
+            <div class="hint">Поддерживаемые форматы в textarea: простые строки UUID, CSV с header, разделители:
+                запятая, ;,
+                пробелы, табы, переносы строки.</div>
+        </div>
+    </div>
+    <script src="tulza_set_pay_type_3_js/tulza_set_pay_type_3_parser.js"></script>
+    <script src="tulza_set_pay_type_3_js/tulza_set_pay_type_3_sender.js"></script>
+</body>
+
+</html>
